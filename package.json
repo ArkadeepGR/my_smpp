@@ -1,0 +1,23 @@
+{
+  "name": "my_smpp",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^14.6.4"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.6.2",
+    "net": "^1.0.2",
+    "safer-buffer": "^2.1.2",
+    "tls": "0.0.1",
+    "util": "^0.12.3"
+  }
+}
