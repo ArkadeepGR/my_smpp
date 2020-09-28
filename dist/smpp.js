@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.addTLV = exports.addCommand = exports.connect = exports.Session = void 0;
+exports.createServer = exports.addTLV = exports.addCommand = exports.connect = exports.Session = void 0;
 var util = require('util');
 var tls = tls = require('tls');
 var net = require('net');
@@ -158,10 +158,26 @@ for (var command in defs.commands) {
     Session.prototype[command] = createShortcut(command);
 }
 exports.connect = (url, listener) => {
-    var options = new Options();
-    options = parse(url);
-    options.host = options.slashes ? options.hostname : url;
-    options.tls = options.protocol == 'ssmpp:';
+    let options = new Options();
+    if (typeof url == 'string') {
+        options = parse(url);
+        options.host = options.slashes ? options.hostname : url;
+        options.tls = options.protocol == 'ssmpp:';
+    }
+    else if (typeof url == 'function') {
+        listener = url;
+    }
+    else {
+        options = url;
+        /*
+        if (options.url) {
+            url = parse(options.url);
+            options.host = url.hostname;
+            options.port = url.port;
+            options.tls = url.protocol == 'ssmpp:';
+        }
+        */
+    }
     options.port = options.port || (options.tls ? 3550 : 2775);
     const session = new Session(options);
     if (listener) {
@@ -179,6 +195,66 @@ exports.addTLV = (tag, options) => {
     options.tag = tag;
     defs.tlvs[tag] = options;
     defs.tlvsById[options.id] = options;
+};
+/// Server
+class Server extends net.Server {
+    constructor(o, listener) {
+        super();
+        //Function
+        this.listen = (...argumentss) => {
+            var args = [this.tls ? 3550 : 2775];
+            if (typeof argumentss[0] == 'function') {
+                args[1] = argumentss[0];
+            }
+            else if (argumentss.length > 0) {
+                args = argumentss;
+            }
+            var transport = this.tls ? tls : net;
+            return transport.Server.prototype.listen.apply(this, args);
+        };
+        let self = this;
+        this.sessions = [];
+        if (typeof o == 'function') {
+            this.listener = o;
+            var tempOption = new Options;
+            this.options = tempOption;
+        }
+        else {
+            this.options = o;
+        }
+        if (listener) {
+            this.on('session', listener);
+        }
+        this.tls = !(typeof this.options.key == "undefined") && !(typeof this.options.cert == "undefined");
+        let transport = this.tls ? tls : net;
+        transport.Server.call(this, this.options, function (socket) {
+            var tempOption = new Options;
+            tempOption.socket = socket;
+            var session = new Session(tempOption);
+            session.server = self;
+            self.sessions.push(session);
+            socket.on('close', function () {
+                self.sessions.splice(self.sessions.indexOf(session), 1);
+            });
+            self.emit('session', session);
+        });
+    }
+}
+exports.createServer = (o, listener) => {
+    var options;
+    var listener;
+    if (typeof o == 'function') {
+        listener = o;
+        var tempOptions = new Options();
+        options = tempOptions;
+    }
+    else {
+        options = o;
+    }
+    /*if (options.key && options.cert) {
+        return new SecureServer(options, listener);
+    }*/
+    return new Server(options, listener);
 };
 for (var key in defs) {
     exports[key] = defs[key];

@@ -1,1 +1,2 @@
-export { connect } from './smpp';
+export { PDU } from './pdu';
+export { connect, Session } from './smpp';

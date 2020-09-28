@@ -1,3 +1,4 @@
+declare var net: any;
 declare var EventEmitter: any;
 declare class Options {
     host: string;
@@ -11,6 +12,8 @@ declare class Options {
     command: any;
     id: any;
     tag: any;
+    key: any;
+    cert: any;
 }
 export declare class Session extends EventEmitter {
     options: Options;
@@ -32,4 +35,14 @@ export declare class Session extends EventEmitter {
 export declare var connect: (url: string, listener?: any) => Session;
 export declare var addCommand: (command: any, options: Options) => void;
 export declare var addTLV: (tag: any, options: Options) => void;
+declare class Server extends net.Server {
+    self: Server;
+    sessions: Session[];
+    options: Options;
+    listener: any;
+    tls: boolean;
+    constructor(o: Options, listener?: any);
+    listen: (...argumentss: any[]) => any;
+}
+export declare var createServer: (o: Options, listener?: any) => Server;
 export {};

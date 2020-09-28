@@ -21,6 +21,8 @@ class Options{
     command;
     id;
     tag;
+    key;
+    cert;
 }
 
 
@@ -173,6 +175,7 @@ export class Session extends EventEmitter {
     };
     
 }
+
 const createShortcut = (command) => {
 	return function(options, responseCallback, sendCallback) {
 		if (typeof options == 'function') {
@@ -180,7 +183,7 @@ const createShortcut = (command) => {
 			responseCallback = options;
 			options = {};
 		}
-		var pdu = new PDU(command, options);
+		var pdu:PDU = new PDU(command, options);
 		return this.send(pdu, responseCallback, sendCallback);
 	};
 };
@@ -190,11 +193,27 @@ for (var command in defs.commands) {
 }
 
 export var connect=(url: string, listener?):Session => {
-    var options = new Options();
-		options = parse(url);
+    let options = new Options();
+    if(typeof url == 'string')
+    {
+        options = parse(url);
 		options.host = options.slashes ? options.hostname : url;
 		options.tls = options.protocol == 'ssmpp:';
-	
+    }else if (typeof url == 'function'){
+		listener = url;
+    }else{
+        options=url
+        /*
+        if (options.url) {
+			url = parse(options.url);
+			options.host = url.hostname;
+			options.port = url.port;
+			options.tls = url.protocol == 'ssmpp:';
+		}
+        */
+    }
+
+
 	options.port = options.port || (options.tls ? 3550 : 2775);
     const session = new Session(options);
     
@@ -217,6 +236,86 @@ export var addTLV = (tag, options:Options):void => {
 	defs.tlvs[tag] = options;
 	defs.tlvsById[options.id] = options;
 };
+
+/// Server
+
+class Server extends net.Server{
+    self:Server;
+    sessions:Session[];
+    options:Options;
+    listener;
+    tls:boolean;
+    constructor(o:Options,listener?){
+        super();
+        let self=this;
+        this.sessions=[];
+
+        if (typeof o == 'function') {
+            this.listener = o;
+            var tempOption=new Options;
+            this.options = tempOption;
+        } else {
+            this.options = o;
+        }
+       
+        if(listener){
+            this.on('session', listener);
+        }
+
+        this.tls = !(typeof this.options.key=="undefined") && !(typeof this.options.cert=="undefined");
+        let transport = this.tls ? tls : net;
+        
+        transport.Server.call(this,this.options, function(socket) {
+            var tempOption=new Options;
+            tempOption.socket=socket;
+            var session = new Session(tempOption);
+            session.server = self;
+            self.sessions.push(session);
+            socket.on('close', function() {
+                self.sessions.splice(self.sessions.indexOf(session), 1);
+            });
+            self.emit('session', session);
+        });
+
+
+    }
+
+    //Function
+    listen = (...argumentss) => {
+        var args = [this.tls ? 3550 : 2775];
+        if (typeof argumentss[0] == 'function') {
+            args[1] = argumentss[0];
+        } else if (argumentss.length > 0) {
+            args = argumentss;
+        }
+        var transport = this.tls ? tls : net;
+        return transport.Server.prototype.listen.apply(this, args);
+    };
+
+
+
+}
+
+
+
+export var createServer=(o:Options,listener?):Server=>{
+    var options:Options;
+    var listener;
+    if(typeof o=='function'){
+        listener = o;
+        var tempOptions=new Options();
+		options = tempOptions;
+    }else{
+        options=o;
+    }
+
+    /*if (options.key && options.cert) {
+		return new SecureServer(options, listener);
+	}*/
+    
+    return new Server(options,listener);
+}
+
 
 for (var key in defs) {
 	exports[key] = defs[key];
